@@ -155,7 +155,7 @@
         async function geminiPrompt(prompt) {
             const apiKey = localStorage.getItem("GEMINI_API_KEY");
             if (!apiKey) { alert("Please save your Gemini API key first."); return; }
-            const resp = model.generateContent({ contents: prompt });
+            const resp = await model.generateContent({ contents: prompt });
             return resp.text;
 
         }
