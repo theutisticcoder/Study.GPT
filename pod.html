@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Gemini Live AI Podcast</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    textarea, button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 10px;
+      font-size: 1rem;
+    }
+    .controls button {
+      width: auto;
+      margin-right: 10px;
+    }
+    #transcript {
+      margin-top: 20px;
+      padding: 10px;
+      background: #fafafa;
+      border-left: 4px solid #007bff;
+      white-space: pre-wrap;
+      min-height: 150px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>🎙 Gemini Live AI Podcast Tool</h2>
+    <p>Enter a study topic and listen to a podcast-style discussion between two AI hosts.</p>
+    
+    <input id="topic" placeholder="e.g., French Revolution">
+    <button onclick="startPodcast()">▶ Start Podcast</button>
+    
+    <div class="controls">
+      <button onclick="pauseAudio()">⏸ Pause</button>
+      <button onclick="resumeAudio()">⏯ Resume</button>
+      <button onclick="stopAudio()">⏹ Stop</button>
+    </div>
+    
+    <h3>Transcript</h3>
+    <div id="transcript"></div>
+  </div>
+
+  <script>
+    let socket, audioCtx;
+    let audioQueue = [];
+    let isPlaying = false;
+    let API_KEY = "YOUR_API_KEY_HERE";  // 🔑 Replace with your Gemini API key
+    const MODEL = "gemini-2.5-flash-live-preview";
+
+    async function startPodcast() {
+      const topic = document.getElementById("topic").value || "The French Revolution";
+      document.getElementById("transcript").textContent = "";
+
+      socket = new WebSocket(
+        `wss://generativelanguage.googleapis.com/v1beta/models/${MODEL}:streamGenerateContent?key=${API_KEY}`
+      );
+
+      socket.onopen = () => {
+        console.log("Connected to Gemini Live");
+
+        // Configure session for AUDIO + TEXT
+        socket.send(JSON.stringify({
+          setup: {
+            generationConfig: {
+              responseModalities: ["AUDIO", "TEXT"],
+              audioConfig: { format: "wav" }
+            }
+          }
+        }));
+
+        // Ask Gemini to create a podcast dialogue
+        socket.send(JSON.stringify({
+          clientContent: {
+            turns: [{
+              role: "user",
+              parts: [{
+                text: `Create a 2-minute educational podcast with two hosts.
+Each host should speak in turns.
+Topic: ${topic}.
+Make it engaging, simple, and helpful for students.`
+              }]
+            }]
+          }
+        }));
+      };
+
+      socket.onmessage = async (event) => {
+        const msg = JSON.parse(event.data);
+
+        // Transcript
+        if (msg.candidate && msg.candidate.output) {
+          document.getElementById("transcript").textContent += msg.candidate.output + "\n";
+        }
+
+        // Audio streaming
+        if (msg.audioChunk) {
+          if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          const binary = atob(msg.audioChunk);
+          const buffer = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) buffer[i] = binary.charCodeAt(i);
+
+          try {
+            const audioBuffer = await audioCtx.decodeAudioData(buffer.buffer);
+            audioQueue.push(audioBuffer);
+            if (!isPlaying) playNext();
+          } catch (e) {
+            console.error("Error decoding audio", e);
+          }
+        }
+      };
+    }
+
+    // Play queued audio sequentially
+    function playNext() {
+      if (audioQueue.length === 0) {
+        isPlaying = false;
+        return;
+      }
+      isPlaying = true;
+      const buffer = audioQueue.shift();
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      source.onended = () => playNext();
+      source.start();
+    }
+
+    function pauseAudio() {
+      if (audioCtx && audioCtx.state === "running") {
+        audioCtx.suspend();
+      }
+    }
+
+    function resumeAudio() {
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+    }
+
+    function stopAudio() {
+      if (audioCtx) {
+        audioCtx.close();
+        audioCtx = null;
+      }
+      audioQueue = [];
+      isPlaying = false;
+    }
+  </script>
+</body>
+</html>
