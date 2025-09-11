@@ -1,18 +1,9 @@
 {
-  "name": "study.gpt",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "build": "npm i"
-  },
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@google/generative-ai": "^0.15.0",
-    "express": "^4.19.2",
-    "socket.io": "^4.7.5",
-    "vercel": "^35.2.1"
-  }
+  "name": "studyflow-all-in-one",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ]
 }
